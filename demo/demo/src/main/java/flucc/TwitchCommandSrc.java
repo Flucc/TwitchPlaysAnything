@@ -41,7 +41,7 @@ public class TwitchCommandSrc {
     // THIS IS THE PROBLEM
     public static void executeQueue() throws InterruptedException, AWTException {
         System.out.println("executeQueue");
-        while (GUI.onOffStatus()) {
+        while (GUI.getStartStopState()) {
             if (!commandQueue.isEmpty()) {
                 executeKeyEvents(commandQueue.remove());
             }

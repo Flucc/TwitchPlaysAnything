@@ -37,96 +37,117 @@ public class App {
     public static Random rand = new Random();
     private static Map<String, Integer> configMap = new HashMap<String, Integer>();
 
-    public static void startBot() throws InterruptedException, AWTException {
+    public static void startBot() {
+        Thread worker = new Thread() {
 
-        OAuth2Credential credential = new OAuth2Credential("twitch", "oauth:uvmb32l8q6iyr2f1lpbk4df6sowipz");
-        TwitchClient twitchClient = TwitchClientBuilder.builder()
-                .withEnableChat(true)
-                .withChatAccount(credential)
-                .build();
+            public void start() {
+                new Thread(() -> {
+                    OAuth2Credential credential = new OAuth2Credential("twitch",
+                            "oauth:uvmb32l8q6iyr2f1lpbk4df6sowipz");
+                    TwitchClient twitchClient = TwitchClientBuilder.builder()
+                            .withEnableChat(true)
+                            .withChatAccount(credential)
+                            .build();
 
-        twitchClient.getChat().joinChannel(GUI.getTwitchUser());
+                    twitchClient.getChat().joinChannel(GUI.getTwitchUser());
 
-        configMap = HashMapFromTextFile();
-        int mode = GUI.getMode();
+                    configMap = HashMapFromTextFile();
+                    int mode = GUI.getMode();
 
-        if (mode == 0)
-            twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
-                System.out.println(event.getMessage());
-                handle_message(event);
+                    if (mode == 0)
+                        twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
+                            System.out.println(event.getMessage());
+                            handle_message(event);
 
-            });
-        if (mode == 1) {
-            twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
-                handle_message(event);
-                try {
-                    Thread.sleep(GUI.getMinInterval() + 1);
-                    Thread.sleep(rand.nextInt(GUI.getMaxInterval() - GUI.getMinInterval() + 1));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+                        });
+                    if (mode == 1) {
+                        twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
+                            handle_message(event);
+                            try {
+                                Thread.sleep(GUI.getMinInterval() + 1);
+                                Thread.sleep(rand.nextInt(GUI.getMaxInterval() - GUI.getMinInterval() + 1));
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
 
-            });
+                        });
 
-        }
-        if (mode == 2) {
-            twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
-                handle_message(event);
-            });
-            Thread.sleep(GUI.getCommandInterval());
-        }
-        TwitchCommandSrc.executeQueue();
-    }
-
-    private static void handle_message(ChannelMessageEvent e) {
-        if (valid(e.getMessage())) {
-            System.out.println("handle_message");
-            TwitchCommandSrc.commandsToQueue(toCommand(e.getMessage()));
-        }
-    }
-
-    public static int toCommand(String str) {
-        System.out.println((int) configMap.get(str));
-        return (int) configMap.get(str);
-    }
-
-    public static Map<String, Integer> HashMapFromTextFile() {
-        Map<String, Integer> map = new HashMap<String, Integer>();
-        BufferedReader br = null;
-
-        try {
-            File file = new File("demo/demo/src/main/java/flucc/config.txt");
-
-            br = new BufferedReader(new FileReader(file));
-            String line = null;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(":");
-                String name = parts[0].trim();
-                String number = parts[1].trim();
-                if (!name.equals("") && !number.equals(""))
-                    map.put(name, Integer.valueOf(number));
+                    }
+                    if (mode == 2) {
+                        twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
+                            handle_message(event);
+                        });
+                        try {
+                            Thread.sleep(GUI.getCommandInterval());
+                        } catch (InterruptedException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
+                    try {
+                        TwitchCommandSrc.executeQueue();
+                    } catch (InterruptedException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    } catch (AWTException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                }).start();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
+
+            private void handle_message(ChannelMessageEvent e) {
+                if (valid(e.getMessage())) {
+                    System.out.println("handle_message");
+                    TwitchCommandSrc.commandsToQueue(toCommand(e.getMessage()));
+                }
+            }
+
+            public int toCommand(String str) {
+                System.out.println((int) configMap.get(str));
+                return (int) configMap.get(str);
+            }
+
+            public Map<String, Integer> HashMapFromTextFile() {
+                Map<String, Integer> map = new HashMap<String, Integer>();
+                BufferedReader br = null;
+
                 try {
-                    br.close();
+                    File file = new File("demo/demo/src/main/java/flucc/keyConfig.txt");
+
+                    br = new BufferedReader(new FileReader(file));
+                    String line = null;
+                    while ((line = br.readLine()) != null) {
+                        String[] parts = line.split(":");
+                        String name = parts[0].trim();
+                        String number = parts[1].trim();
+                        if (!name.equals("") && !number.equals(""))
+                            map.put(name, Integer.valueOf(number));
+                    }
                 } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (br != null) {
+                        try {
+                            br.close();
+                        } catch (Exception e) {
+                        }
+                        ;
+                    }
                 }
-                ;
+                return map;
             }
-        }
-        return map;
-    }
 
-    private static boolean valid(String message) {
-        for (int x : VALID_COMMANDS) {
-            if (x == toCommand(message)) {
-                System.out.println("valid");
-                return true;
+            private boolean valid(String message) {
+                for (int x : VALID_COMMANDS) {
+                    if (x == toCommand(message)) {
+                        System.out.println("valid");
+                        return true;
+                    }
+                }
+                return false;
             }
-        }
-        return false;
+        };
+        worker.start();
     }
 }
