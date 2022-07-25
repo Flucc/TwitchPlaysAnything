@@ -6,7 +6,9 @@ Type your twitch name and see the sample config in demo for more. The left side 
 
 ## Roadmap
 
-- Stylized List of commands to be input
-- Implement rest of the modes
+- ~~Stylized List of commands to be input~~
+- ~~Implement rest of the modes~~
 - Implement mouse movements
 - Active window selection
+- Command Duration
+- Combo Commands (A+B)
