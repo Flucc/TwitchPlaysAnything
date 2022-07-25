@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Timer;
+import java.util.TimerTask;
 
 public class App {
     // TODO: Parse config file to commands, Make each different mode for sampling
@@ -36,12 +37,19 @@ public class App {
     };
     public static Random rand = new Random();
     private static Map<String, Integer> configMap = new HashMap<String, Integer>();
+    private static Timer timer;
+    public static Thread worker;
+
+    private static int randDelay;
 
     public static void startBot() {
-        Thread worker = new Thread() {
+        worker = new Thread() {
 
             public void start() {
                 new Thread(() -> {
+
+                    timer = new Timer("Timer");
+
                     OAuth2Credential credential = new OAuth2Credential("twitch",
                             "oauth:uvmb32l8q6iyr2f1lpbk4df6sowipz");
                     TwitchClient twitchClient = TwitchClientBuilder.builder()
@@ -54,43 +62,54 @@ public class App {
                     configMap = HashMapFromTextFile();
                     int mode = GUI.getMode();
 
-                    if (mode == 0)
+                    if (mode == 0) {
                         twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
                             System.out.println(event.getMessage());
                             handle_message(event);
 
                         });
+                    }
+
                     if (mode == 1) {
                         twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
-                            handle_message(event);
-                            try {
-                                Thread.sleep(GUI.getMinInterval() + 1);
-                                Thread.sleep(rand.nextInt(GUI.getMaxInterval() - GUI.getMinInterval() + 1));
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
+                            handle_random(event);
+                        });
+                        randDelay = rand.nextInt((GUI.getMaxInt() - GUI.getMinInt()) + GUI.getMinInt());
+                        TimerTask tt = new TimerTask() {
+                            public void run() {
+                                TwitchCommandSrc.takeRandom();
+                                randDelay = rand
+                                        .nextInt((GUI.getMaxInt() - GUI.getMinInt()) + GUI.getMinInt());
+                                System.out.println(randDelay);
+                            }
+                        };
+                        System.out.println(randDelay);
+                        timer.scheduleAtFixedRate(tt, 0, randDelay);
+
+                    }
+
+                    if (mode == 2) {
+                        System.out.println("mode 2 engage");
+                        twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
+                            handle_vote(event);
+                        });
+
+                        TimerTask tt = new TimerTask() {
+                            public void run() {
+                                System.out.println("running moder");
+                                TwitchCommandSrc.takeMode();
                             }
 
-                        });
+                        };
+                        timer.scheduleAtFixedRate(tt, GUI.getCommandInterval(), GUI.getCommandInterval());
 
                     }
-                    if (mode == 2) {
-                        twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, event -> {
-                            handle_message(event);
-                        });
-                        try {
-                            Thread.sleep(GUI.getCommandInterval());
-                        } catch (InterruptedException e) {
-                            // TODO Auto-generated catch block
-                            e.printStackTrace();
-                        }
-                    }
+
                     try {
                         TwitchCommandSrc.executeQueue();
                     } catch (InterruptedException e) {
-                        // TODO Auto-generated catch block
                         e.printStackTrace();
                     } catch (AWTException e) {
-                        // TODO Auto-generated catch block
                         e.printStackTrace();
                     }
                 }).start();
@@ -103,8 +122,21 @@ public class App {
                 }
             }
 
+            private void handle_vote(ChannelMessageEvent e) {
+                if (valid(e.getMessage())) {
+                    System.out.println("handle_message");
+                    TwitchCommandSrc.commandsToVote(toCommand(e.getMessage()));
+                }
+            }
+
+            private void handle_random(ChannelMessageEvent e) {
+                if (valid(e.getMessage())) {
+                    System.out.println("handle_message");
+                    TwitchCommandSrc.commandsToRandom(toCommand(e.getMessage()));
+                }
+            }
+
             public int toCommand(String str) {
-                System.out.println((int) configMap.get(str));
                 return (int) configMap.get(str);
             }
 
@@ -149,5 +181,10 @@ public class App {
             }
         };
         worker.start();
+
+    }
+
+    public static Timer getTimer() {
+        return timer;
     }
 }

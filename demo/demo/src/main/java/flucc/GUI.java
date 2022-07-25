@@ -1,19 +1,29 @@
 package flucc;
 
+import java.awt.event.KeyEvent;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.NumberFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.UIManager;
@@ -38,7 +48,7 @@ public class GUI extends JPanel {
     // JButton mouseConfigButton;
     // JButton chooseActiveWindow;
     static JToggleButton startStopButton;
-
+    static JToggleButton viewQueueButton;
     // Mode Config Window Components
     static JFrame modeFrame;
     static JPanel modeConfig;
@@ -61,6 +71,13 @@ public class GUI extends JPanel {
     static int setInt;
     static int comDelay;
 
+    // List and Stuff for the command Queue Pane
+    private static JList list;
+    private static DefaultListModel model;
+    private static JPanel listPanel;
+    static JFrame listFrame;
+    static JScrollPane scrollPane;
+
     public GUI() {
         twitchUsernameLabel = new JLabel("Twitch Username:");
         selectionModeLabel = new JLabel("Select Chat Mode:");
@@ -74,6 +91,7 @@ public class GUI extends JPanel {
 
         modeConfigButton = new JButton("Mode Settings");
         startStopButton = new JToggleButton("Start!");
+        viewQueueButton = new JToggleButton("View Command Queue");
 
         // Add to Panel;
         mainPanel = new JPanel(new MigLayout("wrap 3, fill"));
@@ -90,10 +108,36 @@ public class GUI extends JPanel {
         mainPanel.add(modeConfigButton, "cell 2 2");
 
         mainPanel.add(startStopButton, "cell 1 3");
-
+        mainPanel.add(viewQueueButton, "cell 0 3");
         // mainPanel.add(startStopButton,"cell 0 2");
         // mainPanel.add(chooseActiveWindow, "cell 2 2");
         add(mainPanel);
+
+        // Command Queue List View
+        listPanel = new JPanel(new MigLayout("wrap 3, fill"));
+        model = new DefaultListModel<>();
+        list = new JList<String>(model);
+
+        scrollPane = new JScrollPane();
+        scrollPane.setViewportView(list);
+        list.setLayoutOrientation(JList.VERTICAL);
+
+        scrollPane.setPreferredSize(new Dimension(250, 600));
+        listPanel.add(scrollPane);
+
+        viewQueueButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (listFrame == null) {
+                    listFrame = new JFrame("Selection Mode Settings");
+                    listFrame.add(listPanel);
+                    listFrame.pack();
+                    listFrame.setVisible(true);
+                    listFrame.setAlwaysOnTop(true);
+                    listFrame.setResizable(true);
+                }
+            }
+        });
 
         // Mode Settings Panel
         minIntLabel = new JLabel("Minimum Interval:");
@@ -104,6 +148,7 @@ public class GUI extends JPanel {
         // Formatter for Fields
 
         NumberFormat format = NumberFormat.getInstance();
+        format.setGroupingUsed(false);
         NumberFormatter formatter = new NumberFormatter(format);
         formatter.setValueClass(Integer.class);
         formatter.setMinimum(0);
@@ -177,15 +222,39 @@ public class GUI extends JPanel {
                     keyConfigButton.setEnabled(false);
                     modeConfigButton.setEnabled(false);
                     modeFrame.dispose();
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Start!");
+                    sb.append("                ");
+                    sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                    sb.append("                ");
+                    sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yy")));
+
                     try {
+                        model.addElement(sb.toString());
+                        sb = new StringBuilder();
                         App.startBot();
                     } catch (Exception e1) {
+                        model.addElement("!Error!");
                     }
                 } else if (e.getStateChange() == ItemEvent.DESELECTED) {
                     twitchUsernameField.setEditable(true);
                     selectionModeBox.setEditable(true);
                     keyConfigButton.setEnabled(true);
                     modeConfigButton.setEnabled(true);
+                    App.getTimer().cancel();
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Program Stopped");
+                    sb.append("                ");
+                    sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                    sb.append("                ");
+                    sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yy")));
+                    model.addElement(sb.toString());
+                    App.worker.interrupt();
+                    try {
+                        Logging.logCommands();
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    }
                 }
             }
         });
@@ -204,7 +273,6 @@ public class GUI extends JPanel {
         frame.setResizable(false);
 
         frame.setVisible(true);
-
     }
 
     // public static void focusProgram() {
@@ -218,29 +286,29 @@ public class GUI extends JPanel {
     // }
 
     public static int getMode() {
-        return 1;
+        return selectionModeBox.getSelectedIndex();
     }
 
-    public static int getMinInterval() {
-        if (minIntField.getText().equals(""))
+    public static int getMinInt() {
+        if (minIntField.getText().isEmpty())
             return 1000;
         return minInt;
     }
 
-    public static int getMaxInterval() {
-        if (maxIntField.getText().equals(""))
+    public static int getMaxInt() {
+        if (maxIntField.getText().isEmpty())
             return 10000;
         return maxInt;
     }
 
     public static int getCommandInterval() {
-        if (setIntField.getText().equals(""))
+        if (setIntField.getText().isEmpty())
             return 1000;
         return setInt;
     }
 
     public static int getCommandDelay() {
-        if (comDelayField.getText().equals(""))
+        if (comDelayField.getText().isEmpty())
             return 1000;
         return comDelay;
     }
@@ -253,4 +321,33 @@ public class GUI extends JPanel {
         return startStopButton.isSelected();
     }
 
+    public static DefaultListModel getListModel() {
+        return model;
+    }
+
+    public static void clearModel() {
+        model.clear();
+    }
+
+    public static void toJListEntry(String str) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('\n');
+        if (str.matches("-?\\d+(\\.\\d+)?")) { // Check if string is numeric
+            sb.append(KeyEvent.getKeyText(Integer.parseInt(str)));
+        } else { // Append the Mouse movement command
+            sb.append(str);
+        }
+        sb.append("                ");
+        sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        sb.append("                ");
+        sb.append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yy")));
+
+        model.addElement(sb.toString());
+        scrollToBottom();
+    }
+
+    public static void scrollToBottom() {
+        list.setSelectedIndex(model.getSize() - 1);
+        list.ensureIndexIsVisible(model.getSize() - 1);
+    }
 }
